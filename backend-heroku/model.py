@@ -10,6 +10,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.svm import SVC
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+from keras.models import load_model
 import itertools
 import pickle
 import requests
@@ -50,7 +51,7 @@ def predictPotholes(raw):
 		# run only once after insering all data to reset index
 		df = df.reset_index(drop=True)
 
-		df_main = pd.read_csv('./features.txt')
+	df_main = pd.read_csv('./features.txt')
 
 		# making features for new data
 		# step size is 10 means aggregrating 10 data pts means 1 second data
@@ -280,7 +281,6 @@ def predictPotholes(raw):
 	data = np.array(df_main)
 
 	x = data[:,0:-4]
-	y = data[:,-2:]
 
 	# Data-preprocessing: Standardizing the data matrix 'x'
 	standardized_data = StandardScaler().fit_transform(x)
@@ -288,11 +288,11 @@ def predictPotholes(raw):
 	x = standardized_data
 
 	#loading the model
-	loaded_model = pickle.load(open('model_svm.pkl', 'rb'))
+	model_nn = load_model('model_nn_corrected.h5')
 
-	y_pred = loaded_model.predict(x)
+	y_pred = model_nn.predict(x)
 
-	return y_pred
+	# return y_pred
 
 	print('predictions: ', y_pred)
 
