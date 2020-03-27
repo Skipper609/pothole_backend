@@ -12,7 +12,7 @@ def predict():
     try:
         body = request.get_json()
         data = body["data"]
-        res = m.predictPotholes(data)        
+        m.predictPotholes(data)        
     except Exception as e:
         pass
     
