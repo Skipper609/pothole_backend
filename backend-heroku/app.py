@@ -9,15 +9,15 @@ CORS(app)
 
 @app.route('/data', methods=['POST'])
 def predict():
-    # data = request.form["data"]
-    if request.method == "POST":
-        print(request.form)
+    try:
+        body = request.get_json()
+        data = body["data"]
+        res = m.predictPotholes(data)        
+    except Exception as e:
+        pass
     
-    # data = body["data"]
-    # res = m.predictPotholes(data)
-    # return jsonify({"res": res})
-    # return jsonify({"res":1})
-    return 1
+    
+    return jsonify("{Key : true}")
 
 if __name__ == "__main__":
     app.run(debug=True)

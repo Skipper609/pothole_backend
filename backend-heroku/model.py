@@ -61,7 +61,6 @@ def predictPotholes(raw):
 		# step size is 10 means aggregrating 10 data pts means 1 second data
 		if(i+9 >= len(df)):
 			break
-		print(i)
 		dt = df[i:i+11]      # chunking the given dataframe into smaller dataframe containing 10 pts
 		start = dt.timestamp[i]
 		end = dt.timestamp[i+9]
@@ -225,8 +224,6 @@ def predictPotholes(raw):
 
 		# adding latitude and longitude
 		latitude = dt['latitude'][i+4]
-
-
 		longitude = dt['longitude'][i+4]
 
 		df_temp = pd.DataFrame([[start,end,mean_ax,mean_ay,mean_az,mean_gx,mean_gy,mean_gz,sd_ax,
@@ -271,7 +268,7 @@ def predictPotholes(raw):
 	df_main['fft_ax'] = preprocessing.scale(df_main['fft_ax'])
 	df_main['fft_ay'] = preprocessing.scale(df_main['fft_ay'])
 	df_main['fft_az'] = preprocessing.scale(df_main['fft_az'])
-	print(df_main['fft_ax'])
+	
 
 	df_main['sp_ax'] = preprocessing.scale(df_main['sp_ax'])
 	df_main['sp_ay'] = preprocessing.scale(df_main['sp_ay'])
@@ -291,15 +288,26 @@ def predictPotholes(raw):
 	model_nn = load_model('model_nn_corrected.h5py')
 
 	y_pred = model_nn.predict(x)
+	y_p = [np.where(i == max(i)) for i in y_pred]
+	# y_rec = [i[0][0] for i in y_p]
+	pred = pd.DataFrame(y_p)
+
+	loc = df_main[pred == 1]
 
 	return y_pred
 
 	# print('predictions: ', y_pred)
 
 
+d =  ["152282715954,-0.359523,-0.963649,9.872052,-0.0027938844,-0.009959412,-0.0050170897,12.92829731,77.62135371,0.0",
+"152282715975,-0.5063217,-1.085083,9.581564,0.0067352294,0.031082153,0.0073196413,12.92829731,77.62135371,0.0",
+"152282715996,-0.68674165,-0.9702301,9.76593,0.002949524,0.014346314,0.003413391,12.92829731,77.62135371,0.0",
+"152282716018,-0.59402007,-1.0618728,9.67285,-4.6844484E-4,-0.029862976,3.5858154E-4,12.92829731,77.62135371,0.0",
+"152282716039,-0.51134646,-0.86937106,9.524257,2.6245118E-4,-0.0020248413,-0.007220459,12.92829731,77.62135371,0.0",
+"152282716060,-0.33332062,-0.50075835,9.929959,0.0286026,-0.052467346,-0.1149704,12.92829731,77.62135371,0.0",
+"152282716081,-0.18149567,-0.6912262,10.0247135,-0.002053833,-0.09889221,-0.17092285,12.92829731,77.62135371,0.0",
+"152282716102,-0.55740815,-1.0591233,9.730397,-0.006452942,-0.051246643,-0.1221756,12.92829731,77.62135371,0.0",
+"152282716124,-0.58995056,-0.7199402,9.823842,0.0012405396,-0.04073944,0.015013123,12.92829731,77.62135371,0.0",
+"152282716145,0.12048034,-0.52588195,9.914286,0.00868988,0.014959717,0.029057313,12.92829731,77.62135371,0.0"]
 
-
-
-
-
-
+predictPotholes(d)
