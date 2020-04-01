@@ -15,7 +15,7 @@ import itertools
 import pickle
 import requests
 import json
-import datetime
+from datetime import datetime,timedelta
 import ast
 from pymongo import MongoClient
 import threading
@@ -23,6 +23,8 @@ import re
 import time
 import bson
 import warnings
+from Geolocation import GeoLocation
+
 client = ""
 db =""
 model_nn =""
@@ -43,14 +45,14 @@ def storePoints(locationList):
 		loc = {
 			"longitude":location[1],
 			"latitude":location[0],
-			"time": datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+			"time": datetime.now().strftime("%d-%m-%Y %H:%M:%S")
 		}
 		collection.insert_one(loc)
 
 def refreshPotholeInformation():
 	pothole = db.Pothole_Information
 	holding = db.Pothole_Holder
-	nowTime = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+	nowTime = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
 	start = time.perf_counter()
 
 	points = holding.aggregate([
@@ -81,6 +83,21 @@ def refreshPotholeInformation():
 	end = time.perf_counter()
 	threading.Timer(REFRESH_TIME * 60 - (end - start), refreshPotholeInformation).start()
 
+def getPotholes(latitude, longitude, radius,day):
+	#Radius in KMs
+	min,max = GeoLocation.from_degrees(latitude,longitude).bounding_locations(radius)
+	pothole = db.Pothole_Information
+	lastdate = datetime.now() - timedelta(day)
+	lastdate = lastdate.__str__()
+	res = pothole.find({
+		"latitude":{"$gt":min.deg_lat,"$lt":max.deg_lat},
+		"longitude":{"$gt":min.deg_lon,"$lt":max.deg_lon},
+		"last report":{"$gt":lastdate}
+	},
+	{"_id":0,"reports":0,"Time of First report":0})
+	r = [i for i in res]
+	# print(r)
+	return r
 
 
 def predictPotholes(raw):

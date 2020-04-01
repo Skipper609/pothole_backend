@@ -13,7 +13,7 @@ def predict():
     try:
         body = request.get_json()
         data = body["data"]
-        threading.Timer(1,m.predictPotholes,args=(data,))
+        # threading.Timer(1,m.predictPotholes,args=(data,)) 
         m.predictPotholes(data)        
         # print(threading.active_count())
 
@@ -22,6 +22,16 @@ def predict():
     
     return jsonify("{Key : true}")
 
+@app.route('/potholes', methods=['POST'])
+def getPotholes():
+    res = []
+# try:
+    body = request.get_json()
+    res = m.getPotholes(body['latitude'], body['longitude'],body['radius'],body['day'])
+# except Exception as e:
+    # return jsonify(f"error:{e}")
+    return jsonify({"potholes":res})
+
 if __name__ == "__main__":
     m.initialize()
-    app.run(debug=True)
+    app.run()
