@@ -15,22 +15,78 @@ import itertools
 import pickle
 import requests
 import json
-import time
+import datetime
 import ast
+from pymongo import MongoClient
+import threading
+import re
+import time
+import bson
+import warnings
+client = ""
+db =""
+model_nn =""
+REFRESH_TIME = 30 #in minutes
+def initialize():
+	global model_nn,client,db
+	model_nn = load_model('model_nn_corrected.h5py')
+	url="mongodb+srv://dbuser:dbuser@cluster0-cw2oj.mongodb.net/test?retryWrites=true&w=majority"
+	client=MongoClient(url)
+	db = client.Pothole_Details
+	warnings.simplefilter("ignore")
+	refreshPotholeInformation()
+
+
+def storePoints(locationList):
+	collection = db.Pothole_Holder
+	for location in locationList:
+		loc = {
+			"longitude":location[1],
+			"latitude":location[0],
+			"time": datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+		}
+		collection.insert_one(loc)
+
+def refreshPotholeInformation():
+	pothole = db.Pothole_Information
+	holding = db.Pothole_Holder
+	nowTime = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+	start = time.perf_counter()
+
+	points = holding.aggregate([
+		{"$group" : {"_id":{"longitude" : "$longitude","latitude" : "$latitude"},"count":{"$sum":1},"time":{"$first": "$time"}}},
+		{"$project" : {"longitude":"$_id.longitude","latitude":"$_id.latitude","count":1,"_id":0,"time":1}}
+	])
+	res = [i for i in points]
+	
+	for p in res:
+		res = pothole.find({"latitude":p["latitude"],"longitude":p["longitude"]})
+		res = [i for i in res]
+		if len(res) > 0:
+			pothole.update_one({"latitude":p["latitude"],"longitude":p["longitude"]},{
+				"$set" :{"last report":p["time"]},
+				"$push" : {"reports": {"time":nowTime,"count":p["count"]}},
+				"$inc" : {"reportCount":p["count"]}
+			})
+		else:
+			pothole.insert_one({
+				"Time of First report" : p["time"],
+				"longitude":p["longitude"],
+				"latitude":p["latitude"],
+				"reports":[{"time":nowTime,"count":p["count"]}],
+				"reportCount":p["count"],
+				"last report":p["time"]
+			})
+	holding.delete_many({})
+	end = time.perf_counter()
+	threading.Timer(REFRESH_TIME * 60 - (end - start), refreshPotholeInformation).start()
+
 
 
 def predictPotholes(raw):
-	# data as : timestamp,accx,accy,accz,gyrx,gyry,gyrz,longitude,latitude,speed
-	# print("Raw data : \n")
-	# print(raw)
 
-	start = time.time()
 
 	df = pd.DataFrame(columns=['timestamp', 'accx', 'accy', 'accz','gyrx', 'gyry', 'gyrz', 'latitude', 'longitude', 'speed'])
-
-	# ast.literal_eval(raw)
-	# print(ast)
-
 	for r in raw:
 		data = str(r).split(',')
 		for j in range(len(data)):
@@ -39,14 +95,6 @@ def predictPotholes(raw):
 														 'gyrx', 'gyry', 'gyrz', 'latitude', 'longitude', 'speed']))
 		df = df.append(df2)
 
-		# for temp in ast:
-		# 	data = str(raw.get(temp)).split(',')
-		# 	for j in range(len(data)):
-		# 		data[j] = float(data[j])
-		# 	df2 = pd.DataFrame(pd.DataFrame([data], columns = ['timestamp', 'accx', 'accy', 'accz',
-		# 		'gyrx', 'gyry', 'gyrz', 'latitude', 'longitude', 'speed'] ))
-		# 	df = df.append(df2)
-		# 	i = i + 1
 
 		# run only once after insering all data to reset index
 		df = df.reset_index(drop=True)
@@ -116,12 +164,6 @@ def predictPotholes(raw):
 		var_gx = a[4]
 		var_gy = a[5]
 		var_gz = a[6]
-
-		#adding max-min
-		# mm_x = max_ax - min_ax
-		# mm_y = max_ay - min_ay
-		# mm_z = max_az - min_az
-
 
 		# median coln wise of acc data
 		a = dt.median()
@@ -284,41 +326,27 @@ def predictPotholes(raw):
 	# coln std our feature matrix 
 	x = standardized_data
 
-	#loading the model
-
-	model_nn = load_model('model_nn_corrected')
-
 	y_pred = model_nn.predict(x)
 	y_p = [np.where(i == max(i)) for i in y_pred]
-	# y_rec = [i[0][0] for i in y_p]
-	pred = pd.DataFrame(y_p)
+	y_rec = [i[0][0] for i in y_p]
 
-	loc = df_main[pred == 1]
-
+	loc = np.array([df_main['latitude'],df_main['longitude']])
+	
+	# print(y_rec)
+	# print(loc)
+	
+	# mapping the pothole details with location
+	finalRes = []
+	for i in range(len(y_rec)):
+		if y_rec[i] == 1:
+			finalRes.append([loc[0][i],loc[1][i]])
+	
+	# adding the location to holding table
+	if len(finalRes) > 0:
+		storePoints(finalRes)
+	
 	# return y_pred
 
-	print('predictions: ', y_pred)
 
-
-
-d = ["152282715954,-0.359523,-0.963649,9.872052,-0.0027938844,-0.009959412,-0.0050170897,12.92829731,77.62135371,0.0",
-"152282715975,-0.5063217,-1.085083,9.581564,0.0067352294,0.031082153,0.0073196413,12.92829731,77.62135371,0.0",
-"152282715996,-0.68674165,-0.9702301,9.76593,0.002949524,0.014346314,0.003413391,12.92829731,77.62135371,0.0",
-"152282716018,-0.59402007,-1.0618728,9.67285,-4.6844484E-4,-0.029862976,3.5858154E-4,12.92829731,77.62135371,0.0",
-"152282716039,-0.51134646,-0.86937106,9.524257,2.6245118E-4,-0.0020248413,-0.007220459,12.92829731,77.62135371,0.0",
-"152282716060,-0.33332062,-0.50075835,9.929959,0.0286026,-0.052467346,-0.1149704,12.92829731,77.62135371,0.0",
-"152282716081,-0.18149567,-0.6912262,10.0247135,-0.002053833,-0.09889221,-0.17092285,12.92829731,77.62135371,0.0",
-"152282716102,-0.55740815,-1.0591233,9.730397,-0.006452942,-0.051246643,-0.1221756,12.92829731,77.62135371,0.0",
-"152282716124,-0.58995056,-0.7199402,9.823842,0.0012405396,-0.04073944,0.015013123,12.92829731,77.62135371,0.0",
-"152282716145,0.12048034,-0.52588195,9.914286,0.00868988,0.014959717,0.029057313,12.92829731,77.62135371,0.0",
-"152282715954,-0.359523,-0.963649,9.872052,-0.0027938844,-0.009959412,-0.0050170897,12.92829731,77.62135371,0.0",
-"152282715975,-0.5063217,-1.085083,9.581564,0.0067352294,0.031082153,0.0073196413,12.92829731,77.62135371,0.0",
-"152282715996,-0.68674165,-0.9702301,9.76593,0.002949524,0.014346314,0.003413391,12.92829731,77.62135371,0.0",
-"152282716018,-0.59402007,-1.0618728,9.67285,-4.6844484E-4,-0.029862976,3.5858154E-4,12.92829731,77.62135371,0.0",
-"152282716039,-0.51134646,-0.86937106,9.524257,2.6245118E-4,-0.0020248413,-0.007220459,12.92829731,77.62135371,0.0",
-"152282716060,-0.33332062,-0.50075835,9.929959,0.0286026,-0.052467346,-0.1149704,12.92829731,77.62135371,0.0",
-"152282716081,-0.18149567,-0.6912262,10.0247135,-0.002053833,-0.09889221,-0.17092285,12.92829731,77.62135371,0.0",
-"152282716102,-0.55740815,-1.0591233,9.730397,-0.006452942,-0.051246643,-0.1221756,12.92829731,77.62135371,0.0",
-"152282716124,-0.58995056,-0.7199402,9.823842,0.0012405396,-0.04073944,0.015013123,12.92829731,77.62135371,0.0",
-"152282716145,0.12048034,-0.52588195,9.914286,0.00868988,0.014959717,0.029057313,12.92829731,77.62135371,0.0"]
-predictPotholes(d)
+# storePoints([[11,11],[12,12],[12,12]])
+# refreshPotholeInformation()
