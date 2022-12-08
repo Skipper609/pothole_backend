@@ -10,7 +10,7 @@ bokeh==1.0.4
 boto==2.49.0
 Bottleneck==1.2.1
 bson==0.5.9
-certifi==2019.11.28
+certifi==2022.12.7
 cffi==1.12.2
 cloudpickle==0.8.0
 clyent==1.2.2
